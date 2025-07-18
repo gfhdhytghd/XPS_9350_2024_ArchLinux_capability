@@ -1,0 +1,10 @@
+# /etc/mkinitcpio.d/linux-oem.preset
+ALL_config="/etc/mkinitcpio.conf"
+ALL_kver="/boot/vmlinuz-linux-oem"
+
+PRESETS=('default')
+
+default_image="/boot/initramfs-linux-oem.img"
+#fallback_image="/boot/initramfs-linux-oem-fallback.img"
+#fallback_options="-S autodetect"
+

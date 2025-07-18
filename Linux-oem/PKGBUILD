@@ -1,0 +1,100 @@
+# Maintainer: <Your Name> <youremail@example.com>
+pkgname=linux-oem
+_pkgver=6.11.0-1022-oem  # Ubuntu OEM kernel version string
+pkgver=6.11.0.1022.22    # 将 Ubuntu 内核版本转换为 Arch 包版本格式
+pkgrel=1
+pkgdesc="Ubuntu OEM Linux kernel $_pkgver packaged for Arch Linux"
+arch=('x86_64')
+url="https://mirrors.tuna.tsinghua.edu.cn/ubuntu/pool/main/l/linux-oem-6.11"
+license=('GPL2')
+# 不与 Arch 官方内核冲突，也不提供官方内核
+provides=('linux-oem')
+depends=('coreutils' 'bash')  # 核心工具和脚本（mkinitcpio、depmod等由系统基础组件提供）
+makedepends=('binutils')      # 用于提取 .deb 包
+install=linux-oem.install
+options=('!strip')
+
+
+source=(
+  "https://mirrors.tuna.tsinghua.edu.cn/ubuntu/pool/main/l/linux-oem-6.11/linux-image-unsigned-6.11.0-1022-oem_6.11.0-1022.22_amd64.deb"
+  "https://mirrors.tuna.tsinghua.edu.cn/ubuntu/pool/main/l/linux-oem-6.11/linux-modules-6.11.0-1022-oem_6.11.0-1022.22_amd64.deb"
+  "https://mirrors.tuna.tsinghua.edu.cn/ubuntu/pool/main/l/linux-oem-6.11/linux-modules-ipu6-6.11.0-1022-oem_6.11.0-1022.22_amd64.deb"
+  "https://mirrors.tuna.tsinghua.edu.cn/ubuntu/pool/main/l/linux-oem-6.11/linux-modules-ipu7-6.11.0-1022-oem_6.11.0-1022.22_amd64.deb"
+  "https://mirrors.tuna.tsinghua.edu.cn/ubuntu/pool/main/l/linux-oem-6.11/linux-modules-iwlwifi-6.11.0-1022-oem_6.11.0-1022.22_amd64.deb"
+  "https://mirrors.tuna.tsinghua.edu.cn/ubuntu/pool/main/l/linux-oem-6.11/linux-modules-usbio-6.11.0-1022-oem_6.11.0-1022.22_amd64.deb"
+  "https://mirrors.tuna.tsinghua.edu.cn/ubuntu/pool/main/l/linux-oem-6.11/linux-modules-vision-6.11.0-1022-oem_6.11.0-1022.22_amd64.deb"
+  "https://mirrors.tuna.tsinghua.edu.cn/ubuntu/pool/main/l/linux-oem-6.11/linux-headers-6.11.0-1022-oem_6.11.0-1022.22_amd64.deb"
+  "https://mirrors.tuna.tsinghua.edu.cn/ubuntu/pool/main/l/linux-oem-6.11/linux-tools-6.11.0-1022-oem_6.11.0-1022.22_amd64.deb"
+  "https://mirrors.tuna.tsinghua.edu.cn/ubuntu/pool/main/l/linux-meta-oem-6.11/linux-oem-24.04b_6.11.0-1022.22_amd64.deb"
+  "linux-oem.preset"   # 本地提供的 mkinitcpio preset 文件
+  "linux-oem.install"  # 本地提供的安装脚本
+)
+sha256sums=(
+  '4747c680c34e4d7830fa4b62185962f95cb844aa26bab5579ce53f9ad3fd8c71'  # linux-image-unsigned-6.11.0-1022-oem
+  'e367e0413da1d31e2099ae86bcf7d16b367c10ffa6c83a0e6ee47ce2893bf457'  # linux-modules-6.11.0-1022-oem
+  '4231369023e77fb961fd471886e15d509759dcb72a54904cc1a1bec8a006b174'  # linux-modules-ipu6-6.11.0-1022-oem
+  'ff71e31da4ef5c2ba15117e31f8c1548a1c9e887b61e65af9d7da00dfbc98ebf'  # linux-modules-ipu7-6.11.0-1022-oem
+  'c4e2d02d0d9bde14ed506729588f520c5b91bf085b9a2ca3679256fd1e25ea7d'  # linux-modules-iwlwifi-6.11.0-1022-oem
+  '6e9f2635602de055dd658ab0e01a2310b81363c5b734c0627ea0cd8748a19f0d'  # linux-modules-usbio-6.11.0-1022-oem
+  '616497fbc2c54b21d1dda324a0750fc90cf51a183bf307d95c85c6cd8c62a0b9'  # linux-modules-vision-6.11.0-1022-oem
+  '3c07264cbcbde355f2b856688168c17ef7f1f19020939e81b11bfd9bbaf7ffcf'  # linux-headers-6.11.0-1022-oem
+  '1de45addfda890fcf4c5e9b9751f4a5f3cffb03a8a615f2fba8904e357e79c75'  # linux-tools-6.11.0-1022-oem
+  'SKIP'  # linux-oem-24.04b meta package (内容很小，可跳过校验)
+  'SKIP'  # linux-oem.preset 本地文件，不校验
+  'SKIP'  # linux-oem.install 本地文件，不校验
+)
+
+package() {
+  for _deb in "$srcdir"/*.deb; do
+    echo ">>> extracting ${_deb##*/}"
+    # 1) ar t 可靠地列出 .deb 内部成员
+    _data_tar=$(ar t "$_deb" | grep -E '^data\.tar(\.(xz|zst|gz))?$' | head -n1)
+    if [[ -z $_data_tar ]]; then
+        echo "!! ERROR: 不能在 $_deb 里找到 data.tar.*"
+        exit 1
+    fi
+
+    # 2) ar p 把 data.tar.* 打到 stdout，再喂给 bsdtar 解压进 $pkgdir
+    ar p "$_deb" "$_data_tar" | bsdtar -x --no-same-owner -C "$pkgdir" -f -
+  done
+
+  # ---> 其余步骤照旧 <---
+# --- after loop extracting every .deb -------------------------------
+# 把 /lib 下内容正确迁移到 /usr/lib
+if [ -d "$pkgdir/lib" ]; then
+    # 1) 确保目标目录
+    mkdir -p "$pkgdir/usr/lib"
+
+    # 2) 如果有内核模块目录，单独移动；若 /usr/lib/modules 已存在则合并
+    if [ -d "$pkgdir/lib/modules" ]; then
+        mkdir -p "$pkgdir/usr/lib/modules"
+        cp -a "$pkgdir/lib/modules/." "$pkgdir/usr/lib/modules/"
+    fi
+
+    # 3) 如果有固件等其他子目录，也一并迁移
+    for sub in firmware uefi; do
+        if [ -d "$pkgdir/lib/$sub" ]; then
+            mkdir -p "$pkgdir/usr/lib/$sub"
+            cp -a "$pkgdir/lib/$sub/." "$pkgdir/usr/lib/$sub/"
+        fi
+    done
+
+    # 4) 清理空壳 /lib
+    rm -rf "$pkgdir/lib"
+fi
+
+
+  _kernel_img=$(find "$pkgdir/boot" -name "vmlinuz-*oem*" | head -n1)
+  [[ -z $_kernel_img ]] && { echo "!! ERROR: 内核镜像没找到"; exit 1; }
+  mv "$_kernel_img" "$pkgdir/boot/vmlinuz-linux-oem"
+
+  _cfg=$(find "$pkgdir/boot" -name "config-*oem*" | head -n1)
+  [[ -n $_cfg ]] && mv "$_cfg" "$pkgdir/boot/config-linux-oem"
+
+  _map=$(find "$pkgdir/boot" -name "System.map-*oem*" | head -n1)
+  [[ -n $_map ]] && mv "$_map" "$pkgdir/boot/System.map-linux-oem"
+
+  install -Dm644 "$srcdir/linux-oem.preset" \
+                 "$pkgdir/etc/mkinitcpio.d/linux-oem.preset"
+}
+
