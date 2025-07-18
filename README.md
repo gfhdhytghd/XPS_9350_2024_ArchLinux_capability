@@ -1,0 +1,1 @@
+# XPS_9350_2024_ArchLinux_capability
